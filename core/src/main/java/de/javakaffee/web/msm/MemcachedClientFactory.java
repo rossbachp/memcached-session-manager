@@ -35,6 +35,12 @@ public class MemcachedClientFactory {
 
     public static final String PROTOCOL_BINARY = "binary";
 
+    static interface CouchbaseClientFactory {
+        MemcachedClient createCouchbaseClient(MemcachedNodesManager memcachedNodesManager,
+                String memcachedProtocol, String username, String password, long operationTimeout,
+                Statistics statistics );
+    }
+
     protected MemcachedClient createMemcachedClient(final MemcachedNodesManager memcachedNodesManager,
             final String memcachedProtocol, final String username, final String password, final long operationTimeout,
             final Statistics statistics ) {
@@ -55,30 +61,12 @@ public class MemcachedClientFactory {
     protected MemcachedClient createCouchbaseClient(final MemcachedNodesManager memcachedNodesManager,
             final String memcachedProtocol, final String username, final String password, final long operationTimeout,
             final Statistics statistics) {
-        // return new CouchbaseClientFactory().createCouchbaseClient(memcachedNodesManager, memcachedProtocol, username, password, operationTimeout, statistics);
-        // Call CouchBaseClientFactory with reflect api, then net.spy client have no lib dependency!
-
         try {
-            Class fooClass = Class.forName("de.javakaffee.web.msm.CouchbaseClientFactory");
-            Constructor fooCtrs = fooClass.getConstructor(null);
-            Object factory = fooCtrs.newInstance(null);
-            java.lang.reflect.Method method = fooClass.getDeclaredMethod("createCouchbaseClient",
-                MemcachedNodesManager.class,
-                String.class,
-                String.class,
-                String.class,
-                long.class,
-                Statistics.class);
-            method.setAccessible(true);
-            return (MemcachedClient) method.invoke( factory,
-                    memcachedNodesManager,
-                    memcachedProtocol,
-                    username,
-                    password,
-                    operationTimeout,
-                    statistics);
-        } catch (Exception ex) { ex.printStackTrace(); throw new RuntimeException("Could not create couchbase memcached client", ex); }
-
+            final CouchbaseClientFactory factory = Class.forName("de.javakaffee.web.msm.CouchbaseClientFactory").asSubclass(CouchbaseClientFactory.class).newInstance();
+            return factory.createCouchbaseClient(memcachedNodesManager, memcachedProtocol, username, password, operationTimeout, statistics);
+        } catch (final Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     protected ConnectionFactory createConnectionFactory(final MemcachedNodesManager memcachedNodesManager,
