@@ -17,6 +17,8 @@
 package de.javakaffee.web.msm;
 
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.fail;
 
 import java.lang.reflect.Method;
 
@@ -90,6 +92,29 @@ public class StatisticsTest {
 
         cut.register( 0 );
         assertValues( cut, 4, 0, 4, 1.5 );
+    }
+
+    @Test
+    public void testWatch() throws Exception {
+        final Statistics cut = Statistics.create();
+        final Statistics.Watch watch = cut.stopWatch(Statistics.StatsType.BACKUP);
+        Thread.sleep(1000);
+        watch.stop();
+        assertEquals(Statistics.StatsType.BACKUP,watch.getStatsType());
+        assertTrue(watch.getTime() >= 1 && watch.getTime() <=2);
+    }
+
+    @Test
+    public void testDoubleStopWatch() throws Exception {
+       final Statistics cut = Statistics.create();
+       final Statistics.Watch watch = cut.stopWatch(Statistics.StatsType.BACKUP);
+       watch.stop();
+       try {
+           watch.stop() ;
+           fail("Watch don't disallow double stop ");
+       } catch (IllegalStateException ie) {
+           assertTrue(true);
+       }
     }
 
     private void assertValues( final MinMaxAvgProbe cut, final int count, final int min, final int max, final double avg ) {
