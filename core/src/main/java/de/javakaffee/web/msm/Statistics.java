@@ -18,6 +18,7 @@ package de.javakaffee.web.msm;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -41,11 +42,18 @@ public class Statistics {
 
     private final Map<StatsType, MinMaxAvgProbe> _probes;
 
+    private TimeUnit unit = TimeUnit.MILLISECONDS;
+
     private Statistics() {
         _probes = new ConcurrentHashMap<Statistics.StatsType, Statistics.MinMaxAvgProbe>();
         for( final StatsType item : StatsType.values() ) {
             _probes.put( item, new MinMaxAvgProbe() );
         }
+    }
+
+    private Statistics(final TimeUnit unit) {
+        this();
+        this.unit = unit;
     }
 
     /**
@@ -65,6 +73,10 @@ public class Statistics {
      */
     public static Statistics create( final boolean enabled ) {
         return enabled ? new Statistics() : DISABLED_STATS;
+    }
+
+    public static Statistics create( final boolean enabled, final TimeUnit unit ) {
+        return enabled ? new Statistics(unit) : DISABLED_STATS;
     }
 
     /**
@@ -229,6 +241,7 @@ public class Statistics {
 
     }
 
+
     /**
      * Watch a block in time from one thread!
      */
@@ -245,12 +258,16 @@ public class Statistics {
             this.startTime = System.nanoTime() ;
         }
 
-        private long convertToMillis(long l){
-            return (long)((double)l / 1000000000.0);
+        private long convertToUnit(long l){
+            if ( unit == TimeUnit.MILLISECONDS)
+                return TimeUnit.NANOSECONDS.toMillis(l);
+            else if (unit == TimeUnit.MICROSECONDS)
+                return TimeUnit.NANOSECONDS.toMicros(l);
+            return l ;
         }
 
         protected long getStartTime() {
-            return convertToMillis(startTime);
+            return convertToUnit(startTime);
         }
 
         public StatsType getStatsType() {
@@ -258,16 +275,20 @@ public class Statistics {
         }
 
         public long getTime() {
-            return convertToMillis(deltaTime);
+            return convertToUnit(deltaTime);
+        }
+
+        public TimeUnit getUnit() {
+            return unit;
         }
 
         public void stop() {
             if(first) {
                 deltaTime = System.nanoTime() - startTime;
-                statistics.getProbe(statsType).register(convertToMillis(deltaTime));
+                statistics.getProbe(statsType).register(convertToUnit(deltaTime));
                 first = false;
             } else {
-                throw new IllegalStateException("Can't multiple stop the watch " + statsType + ".");
+                throw new IllegalStateException("Can't stop the watch " + statsType + " multiple times!");
             }
         }
 

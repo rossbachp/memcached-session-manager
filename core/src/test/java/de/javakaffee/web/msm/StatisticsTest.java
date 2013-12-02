@@ -21,6 +21,7 @@ import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
 
 import java.lang.reflect.Method;
+import java.util.concurrent.TimeUnit;
 
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
@@ -101,7 +102,19 @@ public class StatisticsTest {
         Thread.sleep(1000);
         watch.stop();
         assertEquals(Statistics.StatsType.BACKUP,watch.getStatsType());
-        assertTrue(watch.getTime() >= 1 && watch.getTime() <=2);
+        assertTrue(watch.getTime() >= 1000 && watch.getTime() <=2000,
+            "failed watch time after 1sec sleep" + watch.getTime());
+    }
+
+    @Test
+    public void testMicroWatch() throws Exception {
+        final Statistics cut = Statistics.create(true,TimeUnit.MICROSECONDS);
+        final Statistics.Watch watch = cut.stopWatch(Statistics.StatsType.BACKUP);
+        Thread.sleep(1000);
+        watch.stop();
+        assertEquals(Statistics.StatsType.BACKUP,watch.getStatsType());
+        assertTrue(watch.getTime() >= 1000000 && watch.getTime() <=2000000,
+                "failed watch time after 1sec sleep" + watch.getTime());
     }
 
     @Test
