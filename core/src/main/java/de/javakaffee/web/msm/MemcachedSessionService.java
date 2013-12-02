@@ -444,7 +444,7 @@ public class MemcachedSessionService {
 	}
 
     protected MemcachedNodesManager createMemcachedNodesManager(final String memcachedNodes, final String failoverNodes) {
-		return MemcachedNodesManager.createFor( memcachedNodes, failoverNodes, _memcachedClientCallback );
+		return MemcachedNodesManager.createFor( memcachedNodes, failoverNodes, _memcachedClientCallback,_statistics );
 	}
 
     private TranscoderService createTranscoderService( final Statistics statistics ) {

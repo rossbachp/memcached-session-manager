@@ -130,6 +130,26 @@ public class StatisticsTest {
        }
     }
 
+    @Test
+    public void testTimeUnit() {
+        // Test supported units
+        assertEquals("MICROSECONDS",TimeUnit.MICROSECONDS.toString());
+        assertEquals("MILLISECONDS",TimeUnit.MILLISECONDS.toString());
+        assertEquals("NANOSECONDS",TimeUnit.NANOSECONDS.toString());
+
+        // test system property setting
+        Statistics cut = Statistics.create();
+        assertEquals(TimeUnit.MILLISECONDS,cut.getTimeUnit());
+        try {
+            System.setProperty(Configurations.STATISTICS_TIMEUNIT, TimeUnit.MICROSECONDS.toString());
+            cut = Statistics.create();
+            assertEquals(TimeUnit.MICROSECONDS,cut.getTimeUnit());
+        } finally {
+            System.setProperty(Configurations.STATISTICS_TIMEUNIT, TimeUnit.MILLISECONDS.toString());
+        }
+
+    }
+
     private void assertValues( final MinMaxAvgProbe cut, final int count, final int min, final int max, final double avg ) {
         assertEquals( cut.getCount(), count );
         assertEquals( cut.getMin(), min );

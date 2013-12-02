@@ -19,7 +19,6 @@ package de.javakaffee.web.msm;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import javax.annotation.Nonnull;
@@ -42,7 +41,9 @@ public class Statistics {
 
     private final Map<StatsType, MinMaxAvgProbe> _probes;
 
-    private TimeUnit unit = TimeUnit.MILLISECONDS;
+    private TimeUnit unit = TimeUnit.valueOf(
+            System.getProperty(Configurations.STATISTICS_TIMEUNIT,
+                    TimeUnit.MILLISECONDS.toString()));
 
     private Statistics() {
         _probes = new ConcurrentHashMap<Statistics.StatsType, Statistics.MinMaxAvgProbe>();
@@ -177,6 +178,10 @@ public class Statistics {
         return _numNonStickySessionsReadOnlyRequest.get();
     }
 
+    public TimeUnit getTimeUnit() {
+        return unit;
+    }
+
     public static enum StatsType {
 
         /**
@@ -237,8 +242,12 @@ public class Statistics {
         /**
          * Tasks executed for non-sticky sessions after a session was deleted from memcached (delete validity info and backup data).
          */
-        NON_STICKY_AFTER_DELETE_FROM_MEMCACHED
+        NON_STICKY_AFTER_DELETE_FROM_MEMCACHED,
 
+        /**
+         * Tasks executed to check memcache node availability.
+         */
+        PING_CHECK_MEMCACHED
     }
 
 

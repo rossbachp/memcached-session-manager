@@ -129,9 +129,10 @@ public abstract class MemcachedSessionManagerIntegrationTest {
     }
 
     private MemcachedClient createMemcachedClient( final String memcachedNodes, final InetSocketAddress address ) throws IOException, InterruptedException {
-    	final MemcachedNodesManager nodesManager = MemcachedNodesManager.createFor(memcachedNodes, null, _memcachedClientCallback);
+        final Statistics _statistics = Statistics.create(false);
+    	final MemcachedNodesManager nodesManager = MemcachedNodesManager.createFor(memcachedNodes, null, _memcachedClientCallback,_statistics);
         final ConnectionFactory cf = nodesManager.isEncodeNodeIdInSessionId()
-            ? new SuffixLocatorConnectionFactory( nodesManager, nodesManager.getSessionIdFormat(), Statistics.create(), 1000, 1000 )
+            ? new SuffixLocatorConnectionFactory( nodesManager, nodesManager.getSessionIdFormat(), _statistics, 1000, 1000 )
             : new DefaultConnectionFactory();
         final MemcachedClient result = new MemcachedClient( cf, Arrays.asList( address ) );
 

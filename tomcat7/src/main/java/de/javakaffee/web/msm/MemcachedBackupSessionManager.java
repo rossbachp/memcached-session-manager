@@ -820,6 +820,13 @@ public class MemcachedBackupSessionManager extends ManagerBase implements Lifecy
         return _msm.getStatistics().getProbe( NON_STICKY_AFTER_DELETE_FROM_MEMCACHED ).getInfo();
     }
 
+    /**
+     * Tasks executed to check memcache node availability.
+     */
+    public String[] getMsmStatPingCheckMemcached() {
+        return _msm.getStatistics().getProbe( PING_CHECK_MEMCACHED ).getInfo();
+    }
+
     // ---------------------------------------------------------------------------
 
     @Override

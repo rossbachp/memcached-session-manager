@@ -34,6 +34,14 @@ public final class Configurations {
      * The max reconnect delay for the MemcachedClient, in seconds.
      */
     public static final String MAX_RECONNECT_DELAY_KEY = "msm.maxReconnectDelay";
+    /**
+     * The set Statistics provider (plain, metrics)
+     */
+    public static final String STATISTICS_PROVIDER = "msm.statistics.provider";
+    /**
+     * The set Statistics time unit (NANOSECONDS,MICROSECONDS,MILLISECONDS)
+     */
+    public static final String STATISTICS_TIMEUNIT = "msm.statistics.timeunit";
 
     private static final Log LOG = LogFactory.getLog(Configurations.class);
 

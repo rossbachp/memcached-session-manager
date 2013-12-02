@@ -129,7 +129,7 @@ public abstract class NonStickySessionsIntegrationTest {
             throw e;
         }
 
-        final MemcachedNodesManager nodesManager = MemcachedNodesManager.createFor(MEMCACHED_NODES, null, _memcachedClientCallback);
+        final MemcachedNodesManager nodesManager = MemcachedNodesManager.createFor(MEMCACHED_NODES, null, _memcachedClientCallback, Statistics.create(false));
         _client =
                 new MemcachedClient( new SuffixLocatorConnectionFactory( nodesManager, nodesManager.getSessionIdFormat(), Statistics.create(), 1000, 1000 ),
                         Arrays.asList( address1, address2 ) );

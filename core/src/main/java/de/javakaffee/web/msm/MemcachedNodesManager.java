@@ -92,10 +92,12 @@ public class MemcachedNodesManager {
      * @param address2Ids a mapping of inet addresses from the memcachedNodes configuration to their node ids.
      * @param memcachedClientCallback a callback to memcached, can only be null if the memcachedNodes config
      * 		contains a single node without node id.
+     * @param statistics setup statistics
      */
 	public MemcachedNodesManager(final String memcachedNodes, @Nonnull final NodeIdList primaryNodeIds, @Nonnull final List<String> failoverNodeIds,
 			@Nonnull final LinkedHashMap<InetSocketAddress, String> address2Ids,
-			@Nullable final MemcachedClientCallback memcachedClientCallback) {
+			@Nullable final MemcachedClientCallback memcachedClientCallback,
+            @Nonnull final Statistics statistics) {
 		_memcachedNodes = memcachedNodes;
 		_primaryNodeIds = primaryNodeIds;
 		_failoverNodeIds = failoverNodeIds;
@@ -108,8 +110,8 @@ public class MemcachedNodesManager {
 				throw new IllegalArgumentException("The MemcachedClientCallback must not be null.");
 			}
 			_sessionIdFormat = new SessionIdFormat();
-	        _nodeIdService = new NodeIdService( createNodeAvailabilityCache( getCountNodes(), NODE_AVAILABILITY_CACHE_TTL, memcachedClientCallback ),
-	        				primaryNodeIds, failoverNodeIds );
+	        _nodeIdService = new NodeIdService( createNodeAvailabilityCache( getCountNodes(), NODE_AVAILABILITY_CACHE_TTL, memcachedClientCallback, statistics ),
+	        				primaryNodeIds, failoverNodeIds  );
 		}
 		else {
 			_sessionIdFormat = new SessionIdFormat() {
@@ -139,13 +141,15 @@ public class MemcachedNodesManager {
     }
 
     protected NodeAvailabilityCache<String> createNodeAvailabilityCache( final int size, final long ttlInMillis,
-            @Nonnull final MemcachedClientCallback memcachedClientCallback ) {
+            @Nonnull final MemcachedClientCallback memcachedClientCallback, final Statistics statistics ) {
         return new NodeAvailabilityCache<String>( size, ttlInMillis, new CacheLoader<String>() {
 
             @Override
             public boolean isNodeAvailable( final String key ) {
                 try {
+                    Statistics.Watch watch_PING_CHECK_MEMCACHED = statistics.stopWatch(Statistics.StatsType.PING_CHECK_MEMCACHED);
                 	memcachedClientCallback.get(_sessionIdFormat.createSessionId( "ping", key ) );
+                    watch_PING_CHECK_MEMCACHED.stop();
                     return true;
                 } catch ( final Exception e ) {
                     return false;
@@ -175,7 +179,11 @@ public class MemcachedNodesManager {
 	 * @return
 	 */
 	@Nonnull
-	public static MemcachedNodesManager createFor(final String memcachedNodes, final String failoverNodes, final MemcachedClientCallback memcachedClientCallback) {
+	public static MemcachedNodesManager createFor(
+            final String memcachedNodes,
+            final String failoverNodes,
+            final MemcachedClientCallback memcachedClientCallback,
+            final Statistics statistics) {
 		if ( memcachedNodes == null || memcachedNodes.trim().isEmpty() ) {
 			throw new IllegalArgumentException("null or empty memcachedNodes not allowed.");
 		}
@@ -235,7 +243,7 @@ public class MemcachedNodesManager {
 	        }
         }
 
-		return new MemcachedNodesManager(memcachedNodes, primaryNodeIds, failoverNodeIds, address2Ids, memcachedClientCallback);
+		return new MemcachedNodesManager(memcachedNodes, primaryNodeIds, failoverNodeIds, address2Ids, memcachedClientCallback,statistics);
 	}
 
     private static InetSocketAddress getSingleShortNodeDefinition(final Matcher singleNodeMatcher) {
