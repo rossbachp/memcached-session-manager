@@ -68,7 +68,7 @@ public class BackupSessionService {
      * @param backupThreadCount TODO
      * @param memcached
      * @param memcachedNodesManager
-     * @param failoverNodeIds
+     * @param statistics
      */
     public BackupSessionService( final TranscoderService transcoderService,
             final boolean sessionBackupAsync,
@@ -168,7 +168,7 @@ public class BackupSessionService {
             _log.debug( "Starting for session id " + session.getId() );
         }
 
-        final long start = System.currentTimeMillis();
+        Statistics.Watch watch_EFFECTIVE_BACKUP = _statistics.stopWatch(EFFECTIVE_BACKUP);
         try {
 
             if ( !_memcachedNodesManager.getSessionIdFormat().isValid( session.getId() ) ) {
@@ -217,7 +217,7 @@ public class BackupSessionService {
             return result;
 
         } finally {
-            _statistics.registerSince( EFFECTIVE_BACKUP, start );
+            watch_EFFECTIVE_BACKUP.stop();
         }
 
     }
@@ -239,11 +239,12 @@ public class BackupSessionService {
                 if ( _log.isDebugEnabled() ) {
                     _log.debug( "Releasing lock for session " + session.getIdInternal() );
                 }
-                final long start = System.currentTimeMillis();
+                Statistics.Watch watch_RELEASE_LOCK = _statistics.stopWatch(RELEASE_LOCK);
                 _memcached.delete( _memcachedNodesManager.getSessionIdFormat().createLockName( session.getIdInternal() ) ).get();
-                _statistics.registerSince( RELEASE_LOCK, start );
+                watch_RELEASE_LOCK.stop();
                 session.releaseLock();
             } catch( final Exception e ) {
+                // ToDo: Why not release the lock?
                 _log.warn( "Caught exception when trying to release lock for session " + session.getIdInternal(), e );
             }
         }

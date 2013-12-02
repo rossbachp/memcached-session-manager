@@ -17,10 +17,6 @@
 package de.javakaffee.web.msm;
 
 
-import static de.javakaffee.web.msm.Statistics.StatsType.ATTRIBUTES_SERIALIZATION;
-import static de.javakaffee.web.msm.Statistics.StatsType.CACHED_DATA_SIZE;
-import static de.javakaffee.web.msm.Statistics.StatsType.LOAD_FROM_MEMCACHED;
-
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -36,6 +32,8 @@ import org.apache.catalina.Session;
 import de.javakaffee.web.msm.BackupSessionService.SimpleFuture;
 import de.javakaffee.web.msm.BackupSessionTask.BackupResult;
 import de.javakaffee.web.msm.MemcachedNodesManager.MemcachedClientCallback;
+
+import static de.javakaffee.web.msm.Statistics.StatsType.*;
 
 /**
  * This {@link MemcachedSessionService} can be used for debugging session
@@ -99,12 +97,15 @@ public class DummyMemcachedSessionService<T extends MemcachedSessionService.Sess
     public Future<BackupResult> backupSession( final Session session, final boolean sessionIdChanged, final String requestURI ) {
         _log.info( "Serializing session data for session " + session.getIdInternal() );
         final long startSerialization = System.currentTimeMillis();
+        final Statistics.Watch watch_ATTRIBUTES_SERIALIZATION = _statistics.stopWatch(ATTRIBUTES_SERIALIZATION);
         final byte[] data = _transcoderService.serializeAttributes( (MemcachedBackupSession) session, ((MemcachedBackupSession) session).getAttributesFiltered() );
+        _sessionData.put(session.getIdInternal(), data);
+        watch_ATTRIBUTES_SERIALIZATION.stop();
         _log.info( String.format( "Serializing %1$,.3f kb session data for session %2$s took %3$d ms.",
-                (double)data.length / 1000, session.getIdInternal(), System.currentTimeMillis() - startSerialization ) );
-        _sessionData.put( session.getIdInternal(), data );
-        _statistics.registerSince( ATTRIBUTES_SERIALIZATION, startSerialization );
-        _statistics.register( CACHED_DATA_SIZE, data.length );
+                (double)data.length / 1000, session.getIdInternal(), watch_ATTRIBUTES_SERIALIZATION.getTime() ) );
+
+        // Todo: Update Histogram!
+        _statistics.register(CACHED_DATA_SIZE, data.length);
         return new SimpleFuture<BackupResult>( new BackupResult( BackupResultStatus.SUCCESS ) );
     }
 
@@ -142,15 +143,15 @@ public class DummyMemcachedSessionService<T extends MemcachedSessionService.Sess
         @Override
         public Void call() throws Exception {
             _log.info( String.format( "Deserializing %1$,.3f kb session data for session %2$s (asynchronously).", (double)_data.length / 1000, _id ) );
-            final long startDeserialization = System.currentTimeMillis();
+            Statistics.Watch watch_LOAD_FROM_MEMCACHED = _statistics.stopWatch(LOAD_FROM_MEMCACHED);
             try {
                 _transcoderService.deserializeAttributes( _data );
             } catch( final Exception e ) {
                 _log.warn( "Could not deserialize session data.", e );
             }
+            watch_LOAD_FROM_MEMCACHED.stop();
             _log.info( String.format( "Deserializing %1$,.3f kb session data for session %2$s took %3$d ms.",
-                    (double)_data.length / 1000, _id, System.currentTimeMillis() - startDeserialization ) );
-            _statistics.registerSince( LOAD_FROM_MEMCACHED, startDeserialization );
+                    (double)_data.length / 1000, _id, watch_LOAD_FROM_MEMCACHED.getTime() ) );
             return null;
         }
     }

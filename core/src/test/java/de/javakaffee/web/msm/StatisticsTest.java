@@ -96,7 +96,7 @@ public class StatisticsTest {
         assertEquals( cut.getCount(), count );
         assertEquals( cut.getMin(), min );
         assertEquals( cut.getMax(), max );
-        assertEquals( cut.getAvg(), avg );
+        assertEquals( cut.getAvg(), avg, 0.0000001 );
     }
 
 }

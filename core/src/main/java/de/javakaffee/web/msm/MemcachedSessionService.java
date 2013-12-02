@@ -772,9 +772,10 @@ public class MemcachedSessionService {
                 _log.debug( "Deleting session from memcached: " + sessionId );
             }
             try {
-                final long start = System.currentTimeMillis();
+                final Statistics.Watch watch_DELETE_FROM_MEMCACHED =
+                        _statistics.stopWatch(DELETE_FROM_MEMCACHED);
                 _memcached.delete( sessionId ).get();
-                _statistics.registerSince( DELETE_FROM_MEMCACHED, start );
+                watch_DELETE_FROM_MEMCACHED.stop();
                 if ( !_sticky ) {
                     _lockingStrategy.onAfterDeleteFromMemcached( sessionId );
                 }
@@ -1055,7 +1056,8 @@ public class MemcachedSessionService {
             }
 
             final long start = System.currentTimeMillis();
-
+            final Statistics.Watch watch_LOAD_FROM_MEMCACHED =
+                    _statistics.stopWatch(LOAD_FROM_MEMCACHED);
             /* In the previous version (<1.2) the session was completely serialized by
              * custom Transcoder implementations.
              * Such sessions have set the SERIALIZED flag (from SerializingTranscoder) so that
@@ -1069,10 +1071,11 @@ public class MemcachedSessionService {
                 if ( !(object instanceof byte[]) ) {
                     throw new RuntimeException( "The loaded object for sessionId " + sessionId + " is not of required type byte[], but " + object.getClass().getName() );
                 }
-                final long startDeserialization = System.currentTimeMillis();
+                final Statistics.Watch watch_SESSION_DESERIALIZATION =
+                        _statistics.stopWatch(SESSION_DESERIALIZATION);
                 final MemcachedBackupSession result = _transcoderService.deserialize( (byte[]) object, _manager );
-                _statistics.registerSince( SESSION_DESERIALIZATION, startDeserialization );
-                _statistics.registerSince( LOAD_FROM_MEMCACHED, start );
+                watch_SESSION_DESERIALIZATION.stop();
+                watch_LOAD_FROM_MEMCACHED.stop();
 
                 result.setSticky( _sticky );
                 if ( !_sticky ) {

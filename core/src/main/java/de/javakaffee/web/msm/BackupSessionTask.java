@@ -17,11 +17,6 @@
 package de.javakaffee.web.msm;
 
 
-import static de.javakaffee.web.msm.Statistics.StatsType.ATTRIBUTES_SERIALIZATION;
-import static de.javakaffee.web.msm.Statistics.StatsType.BACKUP;
-import static de.javakaffee.web.msm.Statistics.StatsType.MEMCACHED_UPDATE;
-import static de.javakaffee.web.msm.Statistics.StatsType.RELEASE_LOCK;
-
 import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -40,6 +35,8 @@ import org.apache.juli.logging.Log;
 import org.apache.juli.logging.LogFactory;
 
 import de.javakaffee.web.msm.BackupSessionTask.BackupResult;
+
+import static de.javakaffee.web.msm.Statistics.StatsType.*;
 
 /**
  * Stores the provided session in memcached if the session was modified
@@ -63,15 +60,16 @@ public class BackupSessionTask implements Callable<BackupResult> {
     /**
      * @param session
      *            the session to save
-     * @param sessionBackupAsync
-     * @param sessionBackupTimeout
-     * @param memcached
-     * @param force
+     * @param sessionIdChanged
      *            specifies, if the session needs to be saved by all means, e.g.
      *            as it has to be relocated to another memcached
      *            node (the session id had been changed before in this case).
+     * @param transcoderService
+     * @param sessionBackupAsync
+     * @param sessionBackupTimeout
+     * @param memcached
      * @param memcachedNodesManager
-     * @param failoverNodeIds
+     * @param statistics
      */
     public BackupSessionTask( final MemcachedBackupSession session,
             final boolean sessionIdChanged,
@@ -103,7 +101,7 @@ public class BackupSessionTask implements Callable<BackupResult> {
         _session.setBackupRunning( true );
         try {
 
-            final long startBackup = System.currentTimeMillis();
+            final Statistics.Watch watch_BACKUP = _statistics.stopWatch(BACKUP);
 
             final Map<String, Object> attributes = _session.getAttributesFiltered();
             final byte[] attributesData = serializeAttributes( _session, attributes );
@@ -134,7 +132,7 @@ public class BackupSessionTask implements Callable<BackupResult> {
                     _session.storeThisAccessedTimeFromLastBackupCheck();
                     break;
                 case SUCCESS:
-                    _statistics.registerSince( BACKUP, startBackup );
+                    watch_BACKUP.stop() ;
                     _session.storeThisAccessedTimeFromLastBackupCheck();
                     _session.backupFinished();
                     break;
@@ -160,9 +158,9 @@ public class BackupSessionTask implements Callable<BackupResult> {
                 if ( _log.isDebugEnabled() ) {
                     _log.debug( "Releasing lock for session " + _session.getIdInternal() );
                 }
-                final long start = System.currentTimeMillis();
+                final Statistics.Watch watch_RELEASE_LOCK = _statistics.stopWatch(RELEASE_LOCK);
                 _memcached.delete( _memcachedNodesManager.getSessionIdFormat().createLockName( _session.getIdInternal() ) ).get();
-                _statistics.registerSince( RELEASE_LOCK, start );
+                watch_RELEASE_LOCK.stop();
                 _session.releaseLock();
             } catch( final Exception e ) {
                 _log.warn( "Caught exception when trying to release lock for session " + _session.getIdInternal(), e );
@@ -171,9 +169,9 @@ public class BackupSessionTask implements Callable<BackupResult> {
     }
 
     private byte[] serializeAttributes( final MemcachedBackupSession session, final Map<String, Object> attributes ) {
-        final long start = System.currentTimeMillis();
+        final Statistics.Watch watch_ATTRIBUTES_SERIALIZATION = _statistics.stopWatch(ATTRIBUTES_SERIALIZATION);
         final byte[] attributesData = _transcoderService.serializeAttributes( session, attributes );
-        _statistics.registerSince( ATTRIBUTES_SERIALIZATION, start );
+        watch_ATTRIBUTES_SERIALIZATION.stop();
         return attributesData;
     }
 
@@ -222,7 +220,7 @@ public class BackupSessionTask implements Callable<BackupResult> {
          * be valid in tomcat
          */
         final int expirationTime = session.getMemcachedExpirationTimeToSet();
-        final long start = System.currentTimeMillis();
+        final Statistics.Watch watch_MEMCACHED_UPDATE = _statistics.stopWatch(MEMCACHED_UPDATE);
         try {
             final Future<Boolean> future = _memcached.set( session.getId(), expirationTime, data );
             if ( !_sessionBackupAsync ) {
@@ -237,7 +235,7 @@ public class BackupSessionTask implements Callable<BackupResult> {
                 session.setLastBackupTime( System.currentTimeMillis() );
             }
         } finally {
-            _statistics.registerSince( MEMCACHED_UPDATE, start );
+            watch_MEMCACHED_UPDATE.stop();
         }
     }
 

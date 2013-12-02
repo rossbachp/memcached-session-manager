@@ -68,11 +68,21 @@ public class Statistics {
     }
 
     /**
+     * Start time measurement
+     * @param statsType the specific execution type that is measured.
+     * @return current timestamp to start metrics
+     */
+    public Watch stopWatch( @Nonnull final StatsType statsType ) {
+        return new Watch( this, statsType ) ;
+    }
+
+    /**
      * A utility method that calculates the difference of the time
      * between the given <code>startInMillis</code> and {@link System#currentTimeMillis()}
-     * and registers the difference via {@link #register(long)} for the probe of the given {@link StatsType}.
+     * and registers the difference via {@link #register(StatsType, long)} for the probe of the given {@link StatsType}.
      * @param statsType the specific execution type that is measured.
      * @param startInMillis the time in millis that shall be subtracted from {@link System#currentTimeMillis()}.
+     * @deprecated since 1.6.6
      */
     public void registerSince( @Nonnull final StatsType statsType, final long startInMillis ) {
         register( statsType, System.currentTimeMillis() - startInMillis );
@@ -219,13 +229,58 @@ public class Statistics {
 
     }
 
+    /**
+     * Watch a block in time from one thread!
+     */
+    public class Watch {
+        private final long startTime;
+        private long deltaTime;
+        private final StatsType statsType;
+        private final Statistics statistics;
+        private boolean first = true;
+
+        public Watch(final Statistics statistics, final StatsType statsType) {
+            this.statistics = statistics;
+            this.statsType = statsType;
+            this.startTime = System.nanoTime() ;
+        }
+
+        private long convertToMillis(long l){
+            return (long)((double)l / 1000000000.0);
+        }
+
+        protected long getStartTime() {
+            return convertToMillis(startTime);
+        }
+
+        public StatsType getStatsType() {
+            return statsType;
+        }
+
+        public long getTime() {
+            return convertToMillis(deltaTime);
+        }
+
+        public void stop() {
+            if(first) {
+                deltaTime = System.nanoTime() - startTime;
+                statistics.getProbe(statsType).register(convertToMillis(deltaTime));
+                first = false;
+            } else {
+                throw new IllegalStateException("Can't multiple stop the watch " + statsType + ".");
+            }
+        }
+
+    }
+
     public static class MinMaxAvgProbe {
+        private final Object _lock = new Object();
 
         private boolean _first = true;
-        private final AtomicInteger _count = new AtomicInteger();
-        private long _min;
-        private long _max;
-        private double _avg;
+        private final AtomicLong _count = new AtomicLong();
+        private final AtomicLong _min = new AtomicLong();
+        private final AtomicLong _max = new AtomicLong();
+        private volatile double _avg ;
 
         /**
          * A utility method that calculates the difference of the time
@@ -242,20 +297,22 @@ public class Statistics {
          * @param value the value to register.
          */
         public void register( final long value ) {
-            if ( value < _min || _first ) {
-                _min = value;
+            synchronized (_lock) {
+                if ( value < _min.get() || _first ) {
+                    _min.set(value);
+                }
+                if ( value > _max.get() || _first ) {
+                    _max.set(value);
+                }
+                _avg = ( _avg * _count.get() + value ) / _count.incrementAndGet();
+                _first = false;
             }
-            if ( value > _max || _first ) {
-                _max = value;
-            }
-            _avg = ( _avg * _count.get() + value ) / _count.incrementAndGet();
-            _first = false;
         }
 
         /**
          * @return the count
          */
-        int getCount() {
+        long getCount() {
             return _count.get();
         }
 
@@ -263,14 +320,14 @@ public class Statistics {
          * @return the min
          */
         long getMin() {
-            return _min;
+            return _min.get();
         }
 
         /**
          * @return the max
          */
         long getMax() {
-            return _max;
+            return _max.get();
         }
 
         /**
@@ -285,12 +342,14 @@ public class Statistics {
          * @return a String array.
          */
         public String[] getInfo() {
-            return new String[] {
-                    "Count = " + _count.get(),
-                    "Min = "+ _min,
-                    "Avg = "+ _avg,
-                    "Max = "+ _max
-            };
+            synchronized (_lock) {
+                return new String[] {
+                        "Count = " + _count.get(),
+                        "Min = "+ _min.get(),
+                        "Avg = "+ _avg,
+                        "Max = "+ _max.get()
+                };
+            }
         }
 
     }

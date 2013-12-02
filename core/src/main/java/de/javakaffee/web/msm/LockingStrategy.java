@@ -139,10 +139,12 @@ public abstract class LockingStrategy {
             _log.debug( "Locking session " + sessionId );
         }
         final long start = System.currentTimeMillis();
+        Statistics.Watch watch_ACQUIRE_LOCK_FAILURE= _stats.stopWatch(ACQUIRE_LOCK_FAILURE);
+        Statistics.Watch watch_ACQUIRE_LOCK = _stats.stopWatch(ACQUIRE_LOCK);
         try {
             acquireLock( sessionId, LOCK_RETRY_INTERVAL, LOCK_MAX_RETRY_INTERVAL, timeUnit.toMillis( timeout ),
                     System.currentTimeMillis() );
-            _stats.registerSince( ACQUIRE_LOCK, start );
+            watch_ACQUIRE_LOCK.stop();
             if ( _log.isDebugEnabled() ) {
                 _log.debug( "Locked session " + sessionId );
             }
@@ -150,14 +152,14 @@ public abstract class LockingStrategy {
         } catch ( final TimeoutException e ) {
             _log.warn( "Reached timeout when trying to aquire lock for session " + sessionId
                     + ". Will use this session without this lock." );
-            _stats.registerSince( ACQUIRE_LOCK_FAILURE, start );
+            watch_ACQUIRE_LOCK_FAILURE.stop();
             return LockStatus.COULD_NOT_AQUIRE_LOCK;
         } catch ( final InterruptedException e ) {
             Thread.currentThread().interrupt();
             throw new RuntimeException( "Got interrupted while trying to lock session.", e );
         } catch ( final ExecutionException e ) {
             _log.warn( "An exception occurred when trying to aquire lock for session " + sessionId );
-            _stats.registerSince( ACQUIRE_LOCK_FAILURE, start );
+            watch_ACQUIRE_LOCK_FAILURE.stop();
             return LockStatus.COULD_NOT_AQUIRE_LOCK;
         }
     }
@@ -194,9 +196,9 @@ public abstract class LockingStrategy {
             if ( _log.isDebugEnabled() ) {
                 _log.debug( "Releasing lock for session " + sessionId );
             }
-            final long start = System.currentTimeMillis();
+            Statistics.Watch watch_RELEASE_LOCK = _stats.stopWatch(RELEASE_LOCK);
             _memcached.delete( _sessionIdFormat.createLockName( sessionId ) ).get();
-            _stats.registerSince( RELEASE_LOCK, start );
+            watch_RELEASE_LOCK.stop();
         } catch ( final Exception e ) {
             _log.warn( "Caught exception when trying to release lock for session " + sessionId, e );
         }
@@ -224,7 +226,8 @@ public abstract class LockingStrategy {
         try {
 
             final long start = System.currentTimeMillis();
-
+            final Statistics.Watch watch_NON_STICKY_ON_BACKUP_WITHOUT_LOADED_SESSION =
+                    _stats.stopWatch(NON_STICKY_ON_BACKUP_WITHOUT_LOADED_SESSION);
             final String validityKey = createValidityInfoKeyName( sessionId );
             final SessionValidityInfo validityInfo = loadSessionValidityInfoForValidityKey( validityKey );
             if ( validityInfo == null ) {
@@ -255,7 +258,7 @@ public abstract class LockingStrategy {
                 _log.debug( "Stored session validity info for session " + sessionId );
             }
 
-            _stats.registerSince( NON_STICKY_ON_BACKUP_WITHOUT_LOADED_SESSION, start );
+            watch_NON_STICKY_ON_BACKUP_WITHOUT_LOADED_SESSION.stop();
 
         } catch( final Throwable e ) {
             _log.warn( "An error when trying to load/update validity info.", e );
@@ -277,8 +280,7 @@ public abstract class LockingStrategy {
 
         try {
 
-            final long start = System.currentTimeMillis();
-
+            final Statistics.Watch watch_NON_STICKY_AFTER_BACKUP = _stats.stopWatch(NON_STICKY_AFTER_BACKUP);
             final int maxInactiveInterval = session.getMaxInactiveInterval();
             final byte[] validityData = encode( maxInactiveInterval, session.getLastAccessedTimeInternal(),
                     session.getThisAccessedTimeInternal() );
@@ -313,7 +315,7 @@ public abstract class LockingStrategy {
                 _executor.submit( backupSessionTask );
             }
 
-            _stats.registerSince( NON_STICKY_AFTER_BACKUP, start );
+            watch_NON_STICKY_AFTER_BACKUP.stop();
 
         } catch( final Throwable e ) {
             _log.warn( "An error occurred during onAfterBackupSession.", e );
@@ -358,9 +360,11 @@ public abstract class LockingStrategy {
         session.setLockStatus( lockStatus );
 
         final long start = System.currentTimeMillis();
+        final Statistics.Watch watch_NON_STICKY_AFTER_LOAD_FROM_MEMCACHED =
+                _stats.stopWatch(NON_STICKY_AFTER_LOAD_FROM_MEMCACHED);
         final SessionValidityInfo info = loadSessionValidityInfo( session.getIdInternal() );
         if ( info != null ) {
-            _stats.registerSince( NON_STICKY_AFTER_LOAD_FROM_MEMCACHED, start );
+            watch_NON_STICKY_AFTER_LOAD_FROM_MEMCACHED.stop();
             session.setLastAccessedTimeInternal( info.getLastAccessedTime() );
             session.setThisAccessedTimeInternal( info.getThisAccessedTime() );
         }
@@ -373,8 +377,8 @@ public abstract class LockingStrategy {
      * Invoked after a non-sticky session is removed from memcached.
      */
     protected void onAfterDeleteFromMemcached( @Nonnull final String sessionId ) {
-        final long start = System.currentTimeMillis();
-
+        final Statistics.Watch watch_NON_STICKY_AFTER_DELETE_FROM_MEMCACHED =
+                _stats.stopWatch(NON_STICKY_AFTER_DELETE_FROM_MEMCACHED);
         final String validityInfoKey = createValidityInfoKeyName( sessionId );
         _memcached.delete( validityInfoKey );
 
@@ -383,7 +387,7 @@ public abstract class LockingStrategy {
             _memcached.delete( _sessionIdFormat.createBackupKey( validityInfoKey ) );
         }
 
-        _stats.registerSince( NON_STICKY_AFTER_DELETE_FROM_MEMCACHED, start );
+        watch_NON_STICKY_AFTER_DELETE_FROM_MEMCACHED.stop();
     }
 
     private boolean pingSession( @Nonnull final String sessionId ) throws InterruptedException {
